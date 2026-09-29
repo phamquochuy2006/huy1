@@ -1,0 +1,464 @@
+
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Free Fire Cùi Bắp Edition</title>
+
+<style>
+* {
+    box-sizing: border-box;
+}
+
+body {
+    margin: 0;
+    background: #17251b;
+    color: white;
+    font-family: Arial, sans-serif;
+    text-align: center;
+}
+
+h1 {
+    color: #ffe45c;
+    text-shadow: 3px 3px #000;
+    margin: 15px 0 5px;
+}
+
+p {
+    margin: 8px;
+    color: #d5e6d5;
+}
+
+.game-box {
+    width: 95%;
+    max-width: 900px;
+    margin: 15px auto;
+    border: 5px solid #654321;
+    background: #273c29;
+    box-shadow: 0 0 20px #000;
+}
+
+canvas {
+    display: block;
+    width: 100%;
+    height: auto;
+    cursor: crosshair;
+}
+
+#status {
+    padding: 12px;
+    background: #111;
+    font-size: 18px;
+    font-weight: bold;
+}
+
+button {
+    background: #ffcf33;
+    border: 3px solid #111;
+    padding: 12px 25px;
+    font-size: 18px;
+    font-weight: bold;
+    cursor: pointer;
+    margin: 10px;
+}
+
+button:hover {
+    background: #ff9f1c;
+}
+
+.note {
+    font-size: 14px;
+    padding: 0 10px 15px;
+}
+</style>
+</head>
+
+<body>
+
+<h1>🔥 FREE FIRE CÙI BẮP 🔥</h1>
+<p>Phiên bản 2D - Đồ họa hết cứu!</p>
+
+<div class="game-box">
+    <canvas id="game" width="900" height="550"></canvas>
+    <div id="status">
+        ❤️ Máu: 100 |
+        🎯 Điểm: 0 |
+        👾 Địch: 0
+    </div>
+</div>
+
+<button onclick="restartGame()">CHƠI LẠI</button>
+
+<p class="note">
+    Di chuyển: WASD hoặc phím mũi tên |
+    Ngắm: Chuột |
+    Bắn: Click chuột hoặc giữ Space
+</p>
+
+<script>
+const canvas = document.getElementById("game");
+const ctx = canvas.getContext("2d");
+const statusText = document.getElementById("status");
+
+const W = canvas.width;
+const H = canvas.height;
+
+let keys = {};
+let bullets = [];
+let enemies = [];
+let particles = [];
+
+let score = 0;
+let health = 100;
+let gameOver = false;
+let lastShot = 0;
+let lastSpawn = 0;
+let mouse = { x: W / 2, y: H / 2 };
+let animationId;
+
+const player = {
+    x: W / 2,
+    y: H / 2,
+    size: 28,
+    speed: 3.5
+};
+
+// Điều khiển bàn phím
+window.addEventListener("keydown", e => {
+    keys[e.key.toLowerCase()] = true;
+
+    if ([" ", "arrowup", "arrowdown",
+         "arrowleft", "arrowright"].includes(
+         e.key.toLowerCase())) {
+        e.preventDefault();
+    }
+});
+
+window.addEventListener("keyup", e => {
+    keys[e.key.toLowerCase()] = false;
+});
+
+// Điều khiển chuột
+function getMousePos(e) {
+    const rect = canvas.getBoundingClientRect();
+
+    mouse.x = (e.clientX - rect.left)
+              * W / rect.width;
+
+    mouse.y = (e.clientY - rect.top)
+              * H / rect.height;
+}
+
+canvas.addEventListener("mousemove", getMousePos);
+
+canvas.addEventListener("mousedown", e => {
+    getMousePos(e);
+    shoot();
+});
+
+canvas.addEventListener("contextmenu", e => {
+    e.preventDefault();
+});
+
+// Tạo đạn
+function shoot() {
+    if (gameOver) return;
+
+    const now = Date.now();
+
+    if (now - lastShot < 220) return;
+    lastShot = now;
+
+    const dx = mouse.x - player.x;
+    const dy = mouse.y - player.y;
+    const angle = Math.atan2(dy, dx);
+
+    bullets.push({
+        x: player.x,
+        y: player.y,
+        vx: Math.cos(angle) * 8,
+        vy: Math.sin(angle) * 8,
+        size: 6,
+        life: 90
+    });
+}
+
+// Tạo kẻ địch
+function spawnEnemy() {
+    let x, y;
+
+    const side = Math.floor(Math.random() * 4);
+
+    if (side === 0) {
+        x = Math.random() * W;
+        y = -25;
+    } else if (side === 1) {
+        x = W + 25;
+        y = Math.random() * H;
+    } else if (side === 2) {
+        x = Math.random() * W;
+        y = H + 25;
+    } else {
+        x = -25;
+        y = Math.random() * H;
+    }
+
+    enemies.push({
+        x: x,
+        y: y,
+        size: 26,
+        speed: 0.8 + Math.random() * 0.6,
+        hp: 1
+    });
+}
+
+// Vẽ bản đồ
+function drawMap() {
+    ctx.fillStyle = "#648b45";
+    ctx.fillRect(0, 0, W, H);
+
+    // Cỏ vuông vuông
+    ctx.fillStyle = "#557a39";
+
+    for (let x = 0; x < W; x += 50) {
+        for (let y = 0; y < H; y += 50) {
+            if ((x + y) % 100 === 0) {
+                ctx.fillRect(x, y, 25, 25);
+            }
+        }
+    }
+
+    // Vùng nước
+    ctx.fillStyle = "#488eae";
+    ctx.fillRect(0, 0, W, 12);
+    ctx.fillRect(0, H - 12, W, 12);
+    ctx.fillRect(0, 0, 12, H);
+    ctx.fillRect(W - 12, 0, 12, H);
+
+    // Chướng ngại vật
+    ctx.fillStyle = "#77502d";
+    ctx.fillRect(150, 100, 65, 45);
+    ctx.fillRect(650, 350, 75, 45);
+    ctx.fillRect(380, 80, 45, 65);
+}
+
+// Vẽ người chơi
+function drawPlayer() {
+    const angle = Math.atan2(
+        mouse.y - player.y,
+        mouse.x - player.x
+    );
+
+    ctx.save();
+    ctx.translate(player.x, player.y);
+    ctx.rotate(angle);
+
+    // Súng
+    ctx.fillStyle = "#222";
+    ctx.fillRect(5, -5, 28, 10);
+
+    // Thân người
+    ctx.fillStyle = "#1769ff";
+    ctx.fillRect(
+        -player.size / 2,
+        -player.size / 2,
+        player.size,
+        player.size
+    );
+
+    // Mặt
+    ctx.fillStyle = "#ffcc99";
+    ctx.fillRect(0, -8, 12, 16);
+
+    ctx.restore();
+}
+
+// Vẽ địch
+function drawEnemies() {
+    enemies.forEach(enemy => {
+        ctx.fillStyle = "#b52222";
+        ctx.fillRect(
+            enemy.x - enemy.size / 2,
+            enemy.y - enemy.size / 2,
+            enemy.size,
+            enemy.size
+        );
+
+        // Mặt địch
+        ctx.fillStyle = "#ffcc99";
+        ctx.fillRect(enemy.x - 5, enemy.y - 7, 12, 14);
+
+        // Thanh máu
+        ctx.fillStyle = "#222";
+        ctx.fillRect(enemy.x - 15, enemy.y - 23, 30, 5);
+
+        ctx.fillStyle = "#ff3333";
+        ctx.fillRect(enemy.x - 15, enemy.y - 23, 30, 5);
+    });
+}
+
+// Vẽ đạn
+function drawBullets() {
+    bullets.forEach(b => {
+        ctx.fillStyle = "#ffff00";
+        ctx.fillRect(b.x - 3, b.y - 3, 8, 8);
+    });
+}
+
+// Cập nhật người chơi
+function updatePlayer() {
+    let dx = 0;
+    let dy = 0;
+
+    if (keys["w"] || keys["arrowup"]) dy--;
+    if (keys["s"] || keys["arrowdown"]) dy++;
+    if (keys["a"] || keys["arrowleft"]) dx--;
+    if (keys["d"] || keys["arrowright"]) dx++;
+
+    // Không chạy nhanh hơn khi đi chéo
+    if (dx !== 0 && dy !== 0) {
+        dx *= 0.707;
+        dy *= 0.707;
+    }
+
+    player.x += dx * player.speed;
+    player.y += dy * player.speed;
+
+    player.x = Math.max(25, Math.min(W - 25, player.x));
+    player.y = Math.max(25, Math.min(H - 25, player.y));
+
+    if (keys[" "]) shoot();
+}
+
+// Cập nhật đạn
+function updateBullets() {
+    bullets.forEach(b => {
+        b.x += b.vx;
+        b.y += b.vy;
+        b.life--;
+    });
+
+    bullets = bullets.filter(b =>
+        b.x > 0 && b.x < W &&
+        b.y > 0 && b.y < H &&
+        b.life > 0
+    );
+}
+
+// Cập nhật địch
+function updateEnemies() {
+    enemies.forEach(enemy => {
+        const dx = player.x - enemy.x;
+        const dy = player.y - enemy.y;
+        const dist = Math.hypot(dx, dy) || 1;
+
+        enemy.x += dx / dist * enemy.speed;
+        enemy.y += dy / dist * enemy.speed;
+
+        // Địch chạm người chơi
+        if (dist < (enemy.size + player.size) / 2) {
+            health -= 0.35;
+        }
+
+        // Đạn trúng địch
+        bullets.forEach(b => {
+            const d = Math.hypot(
+                b.x - enemy.x,
+                b.y - enemy.y
+            );
+
+            if (d < enemy.size / 2 + b.size / 2) {
+                enemy.hp = 0;
+                b.life = 0;
+                score += 10;
+            }
+        });
+    });
+
+    enemies = enemies.filter(e => e.hp > 0);
+}
+
+// Giao diện
+function updateStatus() {
+    statusText.innerHTML =
+        "❤️ Máu: " + Math.max(0, Math.ceil(health)) +
+        " | 🎯 Điểm: " + score +
+        " | 👾 Địch: " + enemies.length;
+}
+
+// Màn hình thua
+function drawGameOver() {
+    ctx.fillStyle = "rgba(0,0,0,0.75)";
+    ctx.fillRect(0, 0, W, H);
+
+    ctx.textAlign = "center";
+
+    ctx.fillStyle = "#ff3333";
+    ctx.font = "bold 55px Arial";
+    ctx.fillText("GAME OVER!", W / 2, H / 2 - 25);
+
+    ctx.fillStyle = "white";
+    ctx.font = "25px Arial";
+    ctx.fillText("Điểm của bạn: " + score, W / 2, H / 2 + 25);
+
+    ctx.font = "18px Arial";
+    ctx.fillText("Bấm CHƠI LẠI để phục thù!",
+                 W / 2, H / 2 + 65);
+}
+
+// Vòng lặp game
+function gameLoop() {
+    drawMap();
+
+    if (!gameOver) {
+        updatePlayer();
+        updateBullets();
+        updateEnemies();
+
+        if (Date.now() - lastSpawn > 1300) {
+            spawnEnemy();
+            lastSpawn = Date.now();
+        }
+
+        if (health <= 0) {
+            health = 0;
+            gameOver = true;
+        }
+    }
+
+    drawBullets();
+    drawEnemies();
+    drawPlayer();
+    updateStatus();
+
+    if (gameOver) drawGameOver();
+
+    animationId = requestAnimationFrame(gameLoop);
+}
+
+// Chơi lại
+function restartGame() {
+    cancelAnimationFrame(animationId);
+
+    player.x = W / 2;
+    player.y = H / 2;
+
+    bullets = [];
+    enemies = [];
+    particles = [];
+
+    score = 0;
+    health = 100;
+    gameOver = false;
+    lastShot = 0;
+    lastSpawn = Date.now();
+
+    gameLoop();
+}
+
+restartGame();
+</script>
+
+</body>
+</html>
